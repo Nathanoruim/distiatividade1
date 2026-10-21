@@ -1,4 +1,4 @@
-name: Publicar site
+name: Esteira de Entrega Profissional
 
 on:
   push:
@@ -7,60 +7,45 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: paginas
-  cancel-in-progress: true
 
 jobs:
-  preparar-site:
+  construir-e-auditar:
+    name: Construir e auditar o site
     runs-on: ubuntu-latest
 
     steps:
       - name: Baixar o código
         uses: actions/checkout@v4
 
-      - name: Configurar o GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Validar os arquivos do site
+      - name: Auditar a qualidade do site
         run: |
+          set -eu
           test -f index.html
           test -f quem-somos.html
           test -f contato.html
           test -f style.css
           test -f assets/ilustracao.svg
-          grep -q 'href="style.css"' index.html
+
+          for pagina in index.html quem-somos.html contato.html; do
+            grep -q 'href="style.css"' "$pagina"
+            grep -q 'href="index.html"' "$pagina"
+          done
+
           grep -q 'src="assets/ilustracao.svg"' index.html
-          echo "Validação concluída com sucesso."
+          grep -q 'src="assets/ilustracao.svg"' quem-somos.html
+          echo "Auditoria de qualidade aprovada."
 
-      - name: Preparar os arquivos para publicação
+      - name: Criar pacote de distribuição
         run: |
-          mkdir _site
-          cp *.html _site/
-          cp -r assets _site/
-          cp style.css _site/
-          echo "Arquivos preparados para publicação:"
-          find _site -maxdepth 2 -type f
+          mkdir pacote
+          cp index.html quem-somos.html contato.html style.css pacote/
+          cp -r assets pacote/
+          echo "Conteúdo do pacote:"
+          find pacote -maxdepth 2 -type f
 
-      - name: Enviar pacote para o GitHub Pages
-        uses: actions/upload-pages-artifact@v3
+      - name: Disponibilizar pacote de distribuição
+        uses: actions/upload-artifact@v4
         with:
-          path: _site
-
-  publicar-site:
-    if: github.ref == 'refs/heads/main'
-    needs: preparar-site
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.publicacao.outputs.page_url }}
-
-    steps:
-      - name: Publicar no GitHub Pages
-        id: publicacao
-        uses: actions/deploy-pages@v4
+          name: site-estatico
+          path: pacote/
+          if-no-files-found: error
