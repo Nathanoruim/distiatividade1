@@ -1,0 +1,64 @@
+name: Publicar site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: paginas
+  cancel-in-progress: true
+
+jobs:
+  preparar-site:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar o GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Validar os arquivos do site
+        run: |
+          test -f index.html
+          test -f quem-somos.html
+          test -f contato.html
+          test -f style.css
+          test -f assets/ilustracao.svg
+          grep -q 'href="style.css"' index.html
+          grep -q 'src="assets/ilustracao.svg"' index.html
+          echo "Validação concluída com sucesso."
+
+      - name: Preparar os arquivos para publicação
+        run: |
+          mkdir _site
+          cp *.html _site/
+          cp -r assets _site/
+          cp style.css _site/
+          echo "Arquivos preparados para publicação:"
+          find _site -maxdepth 2 -type f
+
+      - name: Enviar pacote para o GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publicar-site:
+    if: github.ref == 'refs/heads/main'
+    needs: preparar-site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publicacao.outputs.page_url }}
+
+    steps:
+      - name: Publicar no GitHub Pages
+        id: publicacao
+        uses: actions/deploy-pages@v4
